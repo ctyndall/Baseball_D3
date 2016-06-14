@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+    <style>
+      circle {
+        stroke: black;
+        stroke-width: 0.7;
+        opacity: 0.7;
+      }
+
+      .handle {
+        fill: gray;
+        stroke: black;
+        stroke-width: 0.7;
+      }
+
+      .axis .halo {
+        fill: gray;
+          stroke: #ddd;
+          stroke-width: 8px;     
+      }
+     
+      h2 {
+        text-align: center;
+        color: black;
+      }
+
+      div.years_buttons {
+        position: fixed;
+        top: 5px;
+        left: 50px;
+      }
+
+      div.years_buttons div {
+        background-color: rgb(251, 201, 127);
+        padding: 3px;
+        margin: 7px;
+      }
+    </style>
+    <script type="text/javascript">  
+	function draw(geo_data) {
+		"use strict";
+		var margin = 75,
+			width = 1400 - margin,
+			height = 600 - margin;
+
+		var title = d3.select("body")
+		  .append("h2")
+		  .text("Wins by Team");
+
+		var svg = d3.select("body")
+			.append("svg")
+			.attr("width", width + margin)
+			.attr("height", height + margin)
+			.append('g')
+			.attr('class', 'svg');
+
+		var projection = d3.geo.albersUsa()
+							   .scale(1000)
+							   .translate([width / 2, height / 2]);
+		
+		function draw_map(geo_data){
+			var path = d3.geo.path().projection(projection);
+
+			var map = svg.append("g").attr("class", "map").selectAll('path')
+						 .data(geo_data.features)
+						 .enter()
+						 .append('path')
+						 .attr('d', path)
+						 .style('fill', 'lightBlue')
+						 .style('stroke', 'black')
+						 .style('stroke-width', 0.5);
+		}
+
+		function plot_data(data){
+debugger;
+			// var radius = d3.scale.linear().domain([-8,8]).range([3,20]).clamp(true);
+
+			// var get_color = function(wins){
+  	// 		var scale = d3.scale.linear().domain([60, 81, 100]).range(["red", "white", "green"]);
+  	// 		return scale(wins);
+  	// 		}
+      var get_color = d3.scale.linear().domain([0,5,10]).range(["blue","white","red"]).clamp(true);
+
+      var radius = function(wins){
+        var scale = d3.scale.linear().domain([.40, .60]).range([3,20]).clamp(true);
+        return scale(wins);
+        }
+
+
+			function update(date){
+				var data_date = data.filter(function(d) {if (d.date_game !== null) {return d.date_game.getTime() === date.getTime();} else {return false}});
+
+				var offset = function(dat){if(dat.homeORvis === "@"){return -2;}else{return 2}};
+				if (data_date.length > 0){
+					title.text(date_format(date));
+					svg.selectAll("g.bubble").remove();
+					svg.append('g')
+				   .attr("class", "bubble")
+				   .selectAll("g")
+					 .data(data_date)
+					 .enter()
+					  .append("g").attr("class", "gbubble")
+					  .append("circle")
+						.attr('cx', function(d) { return projection([d.long, d.lat])[0] + offset(d); })
+						 .attr('cy', function(d){ return projection([d.long, d.lat])[1]; })
+						 .attr('r', function(d) { return radius(parseFloat(d.win_percent))})
+						 .style('fill', function(d) {return get_color(+d.streak_L10)})
+					 .append("title").text(function(d){return parseInt(d.total_wins) + " wins";});
+
+					svg.selectAll('g.gbubble')
+					.append("text")
+					  .attr("x", function(d) {return projection([d.long, d.lat])[0] + 3*offset(d); })
+					  .attr("y", function(d){return projection([d.long, d.lat])[1] + 3*offset(d); })
+					  .text(function(d) {return d.team_ID;})
+					  //.attr("stroke", "black")
+            .attr("stroke", function(d) {if(+d.win_loss_streak >= 0) {return "black"} else {return "gray" }});
+				}
+			}
+			
+			var dates = d3.time.scale()
+                .domain([new Date(2015, 3, 1), new Date(2015, 9, 3)])
+                .ticks(d3.time.days, 1)
+
+			// var i = 0
+			// var interval = setInterval(function() {
+			// 	var date = dates[i]
+			// 	var n_dates = dates.length
+			// 	update(date);
+			// 	i ++;
+			// 	if (i >= dates.length){
+			// 	  clearInterval(interval);
+			// 	}
+			// },100);
+
+
+      // var margin = {top: 200, right: 50, bottom: 200, left: 50},
+      //     width = 960 - margin.left - margin.right,
+      //     height = 500 - margin.bottom - margin.top;
+      var formatDate = d3.time.format("%b %Y")
+      var startDate = new Date(dates[0]);
+      var endDate = new Date(dates[dates.length-1]);
+      var timeScale = d3.time.scale()
+          .domain([startDate, endDate])
+          .range([margin, width -margin])
+          .clamp(true);
+
+      var brush = d3.svg.brush()
+          .x(timeScale)
+          .extent([startDate, startDate])
+          .on("brush", brushed);
+
+      // var svg = d3.select("body").append("svg").attr("class", "slider").
+      //     .attr("width", width + margin.left + margin.right)
+      //     .attr("height", height + margin.top + margin.bottom)
+      //   .append("g")
+      //     .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+      svg.append("g")
+          .attr("class", "x axis")
+          .attr("transform", "translate(0," + 10 + ")")
+          .call(d3.svg.axis()
+            .scale(timeScale)
+            .orient("bottom")
+            .tickFormat(function(d) { return formatDate(d); })
+            .tickSize(0)
+            .tickPadding(12))
+        .select(".domain")
+        .select(function() { return this.parentNode.appendChild(this.cloneNode(true)); })
+          .attr("class", "halo");
+
+      var slider = svg.append("g")
+          .attr("class", "slider")
+          .call(brush);
+
+      slider.selectAll(".extent,.resize")
+          .remove();
+
+      slider.select(".background")
+          .attr("height", height);
+
+      var handle = slider.append("circle")
+          .attr("class", "handle")
+          .attr("transform", "translate(0," + 10 + ")")
+          .attr("r", 9);
+
+      slider
+          .call(brush.event);
+
+      function brushed() {
+        var value = brush.extent()[0];
+
+        if (d3.event.sourceEvent) { // not a programmatic event
+          value = timeScale.invert(d3.mouse(this)[0]);
+          brush.extent([value, value]);
+        }
+
+        handle.attr("cx", timeScale(value));
+      //  debugger;
+        update(d3.time.day.floor(value));
+       // d3.select("body").style("background-color", d3.hsl(value, .8, .8));
+      }
+
+		};
+
+		draw_map(geo_data);
+
+		var date_format = d3.time.format("%A, %b %e %Y");
+		d3.tsv("/data/2015_yearSummary.tsv", 
+				function(d) {d['date_game'] = date_format.parse(d['date_game']); return d;},
+				plot_data);
+
+    };
+    </script>
+
+  </head>
+<body>
+  <script type="text/javascript">
+  /*
+    Use D3 to load the GeoJSON file
+    */
+d3.json("US_states_geoJSON.json", draw);
+  </script>
+</body>
+</html>
+
+
+
+
+

@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="http://d3js.org/d3.v3.min.js"></script>
+  <script src="http://dimplejs.org/dist/dimple.v2.0.0.min.js"></script>
+    <style>
+      h2 {
+        text-align: center;
+        color: black;
+      }
+
+      .resize path {
+        fill: #666;
+        fill-opacity: .8;
+        stroke: #000;
+        stroke-width: 1.5px;
+      }
+
+      .axis path, .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+      }
+
+      .brush .extent {
+        fill-opacity: .125;
+        shape-rendering: crispEdges;
+      }
+  </style>
+    <script type="text/javascript">  
+      function draw(data) {
+        "use strict";
+        debugger;
+        var margin = 75,
+            width = 1400 - margin,
+            height = 600 - margin,
+            height_slider = 20;
+
+        d3.select("body")
+          .append("h2")
+          .text("Momentum into Playoffs");
+
+        var svg = d3.select("body")
+            .append("svg")
+            .attr("width", width + margin)
+            .attr("height", height + height_slider + margin);
+        
+//var chart_svg = svg.append('g').attr('class','chart');
+        
+        function draw_chart(game_range){
+          d3.selectAll('g.chart').remove();
+          var chart_svg = d3.select('svg').append('g').attr('class','chart');
+          var chart = new dimple.chart(chart_svg, data);
+          var x = chart.addCategoryAxis("x", "Group");
+          var y = chart.addMeasureAxis("y",game_range);
+          chart.height = height - (3/2)*margin;
+          y.overrideMax = 1.0;
+          y.overrideMin  = 0.0;
+          chart.addSeries(null, dimple.plot.bar);
+          x.addOrderRule(['LDS Winners', 'LDS Losers', 'LCS Winners', 'LCS Losers', 'WS Winner', 'WS Loser']);
+          y.tickFormat  = '.3f';
+          chart.draw();
+        };
+
+        //Brush Slider
+        var x_slider = d3.scale.linear()
+            .domain([1, 162])
+            .range([margin/2, width - (3/2)*margin]);
+
+        var brush = d3.svg.brush()
+            .x(x_slider)
+            .extent([1.0, 162.0])
+            .on("brushstart", brushstart)
+            .on("brush", brushmove)
+            .on("brushend", brushend);
+
+        var arc = d3.svg.arc()
+            .outerRadius(height_slider / 2)
+            .startAngle(0)
+            .endAngle(function(d, i) { return i ? -Math.PI : Math.PI; });
+
+        var slider = svg.append("g")
+            .attr('class','slider')
+            .attr("transform", "translate(" + margin + "," + height + ")");
+
+        slider.append("g")
+            .attr("class", "x axis")
+            .attr("transform", "translate(0," + height_slider + ")")
+            .call(d3.svg.axis().scale(x_slider).orient("bottom"));
+
+        var brushg = slider.append("g")
+            .attr("class", "brush")
+            .call(brush);
+
+        brushg.selectAll(".resize").append("path")
+            .attr("transform", "translate(0," +  height_slider / 2 + ")")
+            .attr("d", arc);
+
+        brushg.selectAll("rect")
+            .attr("height", height_slider);
+
+        brushstart();
+        brushmove();
+
+        function brushstart() {
+          slider.classed("selecting", true);
+        }
+
+        function brushmove() {
+          var s = brush.extent();
+          var range = "(" + Math.round(s[0] - 1) + ".0, " + Math.round(s[1] - 1) + ".0)";
+          draw_chart(range);
+
+        }
+
+        function brushend() {
+          slider.classed("selecting", !d3.event.target.empty());
+        }
+
+        };
+    </script>
+
+  </head>
+<body>
+  <script type="text/javascript">
+    d3.tsv("/data/momentum_2000to2014.txt", draw);    
+  </script>
+</body>
+</html>
